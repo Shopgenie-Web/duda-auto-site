@@ -9,11 +9,14 @@ from flask import jsonify
 def generate():
     payload = request.get_json(force=True)
     row_num = int(payload["row"])
+    app.logger.info(f"🔄 Processing row {row_num}")
+    
     record = get_row_dict(row_num)
 
     # 1. Clone site
     site_slug = slugify(record["Shop Name (as you want it displayed throughout your site)"])[:30]
     site_slug = f"{site_slug}-{int(time.time())}"      # uniqueness
+    app.logger.info(f"🌐 Creating site: {site_slug}")
     site_name = create_site(os.environ["TEMPLATE_ID"], site_slug)
 
     # 2. Push Site Data (keys must exist in template)
@@ -109,6 +112,7 @@ def generate():
     "surrounding_cities_4": record["Surrounding cities list 4 (include 3 or more, each on a separate line)"],
     "today": record["Todays Date (mm/dd/yy)"]
 }
+    app.logger.info(f"📦 Injecting site data for {site_name}")
     set_site_data(site_name, site_data)
 
     # 3. Email customer
@@ -118,10 +122,12 @@ def generate():
         <p>Your draft website is ready: <a href="{draft_url}">{draft_url}</a></p>
         <p>We'll be in touch with next steps!</p>
     """
+    app.logger.info(f"✉️  Sending email to {record['Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website']}")
     send_email(record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"],
                os.environ["EMAIL_SUBJECT"], html)
 
     # 4. Mark processed
     set_processed(row_num)
+    app.logger.info(f"✅ Done processing row {row_num} (site: {site_name})")
 
     return jsonify({"site": site_name, "row": row_num})
