@@ -15,17 +15,24 @@ def _client_secret_path():
     return os.getenv("GMAIL_CLIENT_SECRET")
 
 def _token_path():
-    return pathlib.Path(os.getenv("GMAIL_TOKEN_PATH", "gmail_token.json"))
+    # use tmp on Heroku, file on local dev
+    return pathlib.Path(os.getenv("GMAIL_TOKEN_PATH", "/tmp/gmail_token.json"))
 
-def _get_creds():
+def _ensure_token_file():
     token_file = _token_path()
     if token_file.exists():
-        return Credentials.from_authorized_user_file(token_file, SCOPES)
+        return token_file
+    # If token missing but JSON is in env, write it
+    if os.getenv("GMAIL_TOKEN_JSON"):
+        token_file.write_text(os.environ["GMAIL_TOKEN_JSON"])
+        return token_file
+    return None
 
 def gmail_service():
-    creds = _get_creds()
-    if not creds or not creds.valid:
-        raise RuntimeError("No valid Gmail token—run /authorize once")
+    token_file = _ensure_token_file()
+    if not token_file:
+        raise RuntimeError("No Gmail token—run /authorize once")
+    creds = Credentials.from_authorized_user_file(token_file, SCOPES)
     return build("gmail", "v1", credentials=creds)
 
 def send_email(to_addr, subject, html_body):
@@ -35,13 +42,3 @@ def send_email(to_addr, subject, html_body):
     message["subject"] = subject
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
     gmail_service().users().messages().send(userId="me", body={"raw": raw}).execute()
-
-def flow_for_oauth():
-    return Flow.from_client_secrets_file(
-        _client_secret_path(),
-        scopes=SCOPES,
-        redirect_uri=os.environ.get("OAUTH_REDIRECT_URI"),
-    )
-
-def save_token(creds):
-    _token_path().write_text(creds.to_json())
