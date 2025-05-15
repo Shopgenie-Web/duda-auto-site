@@ -122,9 +122,11 @@ def generate():
         <p>Your draft website is ready: <a href="{draft_url}">{draft_url}</a></p>
         <p>We'll be in touch with next steps!</p>
     """
-    app.logger.info(f"✉️  Sending email to {record['Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website']}")
-    send_email(record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"],
-               os.environ["EMAIL_SUBJECT"], html)
+    email_key = "Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"
+    email_addr = record[email_key]
+
+    app.logger.info(f"✉️  Sending email to {email_addr}")
+    send_email(email_addr, os.environ["EMAIL_SUBJECT"], html)
 
     # 4. Mark processed
     set_processed(row_num)
