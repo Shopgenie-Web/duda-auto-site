@@ -1,26 +1,42 @@
-import os
-from dotenv import load_dotenv; load_dotenv()
+import json, time
+from slugify import slugify
+from sheets_helper import get_row_dict, set_processed
+from duda_helper import create_site, set_site_data
+from email_helper import send_email
+from flask import jsonify
 
-from flask import Flask, redirect, request, url_for
-from email_helper import flow_for_oauth, save_token, send_email
+@app.route("/generate", methods=["POST"])
+def generate():
+    payload = request.get_json(force=True)
+    row_num = int(payload["row"])
+    record = get_row_dict(row_num)
 
-app = Flask(__name__)
+    # 1. Clone site
+    site_slug = slugify(record["Shop Name (as you want it displayed throughout your site)"])[:30]
+    site_slug = f"{site_slug}-{int(time.time())}"      # uniqueness
+    site_name = create_site(os.environ["TEMPLATE_ID"], site_slug)
 
-# set redirect URI dynamically for local vs Heroku
-if "HEROKU_APP_NAME" in os.environ:
-    os.environ["OAUTH_REDIRECT_URI"] = f"https://{os.environ['HEROKU_APP_NAME']}.herokuapp.com/oauth2callback"
-else:
-    os.environ["OAUTH_REDIRECT_URI"] = "http://127.0.0.1:5000/oauth2callback"
+    # 2. Push Site Data (keys must exist in template)
+    site_data = {
+        "shop_name": record["Shop Name (as you want it displayed throughout your site)"],
+        "phone": record["Phone number"],
+        "primary_color": record["Primary Color for Color Scheme (Use color codes eg. #ffffff)"],
+        "secondary_color": record["Secondary Color for Color Scheme (Use color codes eg. #ffffff)"],
+        # add other mappings here…
+    }
+    set_site_data(site_name, site_data)
 
-@app.route("/authorize")
-def authorize():
-    flow = flow_for_oauth()
-    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
-    return redirect(auth_url)
+    # 3. Email customer
+    draft_url = f"https://{site_name}.multiscreensite.com/"
+    html = f"""
+        <p>Hi,</p>
+        <p>Your draft website is ready: <a href="{draft_url}">{draft_url}</a></p>
+        <p>We'll be in touch with next steps!</p>
+    """
+    send_email(record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"],
+               os.environ["EMAIL_SUBJECT"], html)
 
-@app.route("/oauth2callback")
-def oauth2callback():
-    flow = flow_for_oauth()
-    flow.fetch_token(authorization_response=request.url)
-    save_token(flow.credentials)
-    return "✅ Gmail authorization complete. You can close this tab."
+    # 4. Mark processed
+    set_processed(row_num)
+
+    return jsonify({"site": site_name, "row": row_num})
