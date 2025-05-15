@@ -3,8 +3,9 @@ from slugify import slugify
 from sheets_helper import get_row_dict, set_processed
 from duda_helper import create_site, set_site_data
 from email_helper import send_email
-from flask import jsonify
+from flask import Flask, request, jsonify
 
+app = Flask(__name__)
 @app.route("/generate", methods=["POST"])
 def generate():
     payload = request.get_json(force=True)
