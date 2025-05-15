@@ -3,3 +3,4 @@ creds.json
 creds.json
 .venv/
 gmail_client_secret.json
+gmail_token.json
