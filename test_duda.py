@@ -1,19 +1,14 @@
 import requests
 from requests.auth import HTTPBasicAuth
 
-auth = HTTPBasicAuth("2669cb120e", "qItYKj02wXD8")
-url = "https://api.duda.co/api/sites/multiscreen/create"
-payload = {"template_id": "e08fda61"}
-
 resp = requests.post(
-    url,
-    auth=auth,
+    "https://api.duda.co/api/sites/multiscreen/create",
+    auth=HTTPBasicAuth("2669cb120e", "qItYKj02wXD8"),
     headers={
         "Accept": "application/json",
         "Content-Type": "application/json"
     },
-    json=payload
+    json={"template_id": "e08fda61"}
 )
-
 print(resp.status_code)
 print(resp.text)

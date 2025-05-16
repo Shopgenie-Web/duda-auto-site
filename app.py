@@ -1,23 +1,28 @@
 import logging
 import os
+
+# Log Duda credentials coming from the environment
 logging.info(f"DUDA_API_USERNAME from env: {os.getenv('DUDA_API_USERNAME')}")
 logging.info(f"DUDA_API_PASSWORD from env: {os.getenv('DUDA_API_PASSWORD')}")
-import json, time
-from requests.auth import _basic_auth_str
+
+import json
+import time
+
+from flask import Flask, request, jsonify
 from sheets_helper import get_row_dict, set_processed
 from duda_helper import create_site, set_site_data
 from email_helper import send_email
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
 @app.route("/test-auth", methods=["GET"])
 def test_auth():
-    # Build and return the exact Basic auth header your app will use
-    username = os.getenv("DUDA_API_USERNAME", "")
-    password = os.getenv("DUDA_API_PASSWORD", "")
-    header = _basic_auth_str(username, password)
-    return jsonify({"Authorization": header})
+    """
+    Returns the Basic auth header that duda_helper will use,
+    so you can verify your credentials are being encoded correctly.
+    """
+    import duda_helper
+    return duda_helper._auth_header()
 
 @app.route("/generate", methods=["POST"])
 def generate():
@@ -25,9 +30,10 @@ def generate():
     row_num = int(payload["row"])
     app.logger.info(f"🔄 Processing row {row_num}")
 
+    # Pull the form record from Google Sheets
     record = get_row_dict(row_num)
 
-    # 1. Clone site — let Duda pick a valid slug for you
+    # 1. Clone site (auto-generated slug by Duda)
     app.logger.info("🌐 Creating site (auto-slug)")
     site_name = create_site(os.environ["TEMPLATE_ID"], None)
     app.logger.info(f"✅ Created site: {site_name}")
@@ -47,7 +53,6 @@ def generate():
         "motto": record["Your Motto/Slogan for The Shop"],
         "hero_image": record["Hero Section Background Image (please provide a link to the file showcasing your shop)"],
         "why_choose_us": record["Why Choose Us Content (explain why customers should choose your shop for their auto repair needs)"],
-
         # Coupons
         "coupon_1_amount": record["Coupon 1 (discount that is offered)"],
         "coupon_1_for": record["Coupon 1 (what is this discount for)"],
@@ -58,7 +63,6 @@ def generate():
         "coupon_3_amount": record["Coupon 3 (discount that is offered)"],
         "coupon_3_for": record["Coupon 3 (what is this discount for)"],
         "coupon_3_disclaimer": record["Coupon 3 (disclaimers/exceptions)"],
-
         # Services
         "service_1_name": record["Primary service offered 1 (name of service)"],
         "service_1_desc": record["Primary service offered 1 (short description of service)"],
@@ -69,7 +73,6 @@ def generate():
         "additional_services_1": record["Additional services offered list 1 (include 3 or more, each on a separate line)"],
         "additional_services_2": record["Additional services offered list 2 (include 3 or more, each on a separate line)"],
         "additional_services_3": record["Additional services offered list 3 (include 3 or more, each on a separate line)"],
-
         # Reviews
         "review_1_content": record["Review content 1 (add a customer review)"],
         "review_1_name": record["Review 1 customer name (use proper capitalization)"],
@@ -77,7 +80,6 @@ def generate():
         "review_2_name": record["Review 2 customer name (use proper capitalization)"],
         "review_3_content": record["Review content 3 (add a customer review)"],
         "review_3_name": record["Review 3 customer name (use proper capitalization)"],
-
         # Values
         "value_1_title": record["Company values 1"],
         "value_1_desc": record["Company values 1 explanation of said value"],
@@ -85,7 +87,6 @@ def generate():
         "value_2_desc": record["Company values 2 explanation of said value"],
         "value_3_title": record["Company values 3"],
         "value_3_desc": record["Company values 3 explanation of said value"],
-
         # Vehicles
         "vehicle_regions": record["Manufacturer regions you support (Domestic, European, Asian, etc.)"],
         "vehicles_image": record["Vehicles Section Image (please provide a link to the file showcasing some vehicles you service)"],
@@ -94,7 +95,6 @@ def generate():
         "vehicle_makes_2": record["List of vehicle makes you service 2 (include 3 or more, each on a separate line)"],
         "vehicle_makes_3": record["List of vehicle makes you service 3 (include 3 or more, each on a separate line)"],
         "vehicle_makes_4": record["List of vehicle makes you service 4 (include 3 or more, each on a separate line)"],
-
         # Financing
         "financing_1": record["Financing option 1"],
         "financing_1_desc": record["Financing option 1 details (explain the financing details)"],
@@ -102,7 +102,6 @@ def generate():
         "financing_2_desc": record["Financing option 2 details (explain the financing details)"],
         "financing_3": record["Financing option 3"],
         "financing_3_desc": record["Financing option 3 details (explain the financing details)"],
-
         # FAQs
         "faq_1_title": record["FAQ 1 (title only)"],
         "faq_1_text": record["FAQ 1 details"],
@@ -116,7 +115,6 @@ def generate():
         "faq_5_text": record["FAQ 5 details"],
         "faq_6_title": record["FAQ 6 (title only)"],
         "faq_6_text": record["FAQ 6 details"],
-
         # Location content
         "location_description": record["Location details (in a paragraph or two, talk a bit about the area that you serve)"],
         "surrounding_cities_1": record["Surrounding cities list 1 (include 3 or more, each on a separate line)"],
