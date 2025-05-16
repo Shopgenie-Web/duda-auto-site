@@ -2,6 +2,7 @@ import os
 import requests
 import base64
 import logging
+import json
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -9,7 +10,6 @@ logger = logging.getLogger("duda_helper")
 
 BASE = "https://api.duda.co/api"
 
-# Manually encode basic auth credentials
 def _auth_header():
     user = os.environ["DUDA_API_USERNAME"]
     pw = os.environ["DUDA_API_PASSWORD"]
@@ -19,12 +19,14 @@ def _auth_header():
 
 def create_site(template_id: str, site_name: str):
     url = f"{BASE}/sites/multiscreen/create"
-    payload = {
+
+    # Prepare JSON as a raw string instead of dict to avoid parsing issues
+    payload = json.dumps({
         "template_id": template_id,
         "site_name": site_name,
-        "site_domain": site_name,  # optional, but can help for uniqueness
-        "editor_type": "responsive"  # optional, but keeps things explicit
-    }
+        "site_domain": site_name,
+        "editor_type": "responsive"
+    })
 
     headers = {
         **_auth_header(),
@@ -35,7 +37,8 @@ def create_site(template_id: str, site_name: str):
     logger.info(f"🌐 Sending request to create site: {site_name} using template: {template_id}")
     logger.debug(f"Payload: {payload}")
 
-    res = requests.post(url, headers=headers, json=payload)
+    # Use data= instead of json= to mirror the raw body behavior
+    res = requests.post(url, headers=headers, data=payload)
 
     try:
         res.raise_for_status()
