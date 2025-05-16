@@ -1,4 +1,7 @@
+import logging
 import os
+logging.info(f"DUDA_API_USERNAME from env: {os.getenv('DUDA_API_USERNAME')}")
+logging.info(f"DUDA_API_PASSWORD from env: {os.getenv('DUDA_API_PASSWORD')}")
 import json, time
 from slugify import slugify
 from sheets_helper import get_row_dict, set_processed
