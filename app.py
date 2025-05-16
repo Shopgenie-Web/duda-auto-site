@@ -21,25 +21,30 @@ def generate():
     payload = request.get_json(force=True)
     row_num = int(payload["row"])
     app.logger.info(f"🔄 Processing row {row_num}")
-    
+
     record = get_row_dict(row_num)
 
-    # 1. Clone site (make sure slug starts with a letter so Duda won’t reject it)
+    # 1. Clone site — build a slug that starts with a letter, no trailing hyphens
     def make_valid_slug(name: str) -> str:
-        base = slugify(name)
-        # if it doesn’t start with a letter, prefix with “s”
-        if not base or not base[0].isalpha():
-            base = "s" + base
-        # trim to 30 chars so we have room for timestamp
-        base = base[:30]
-        return f"{base}-{int(time.time())}"
+        raw = slugify(name) or ""
+        # prefix with "s" if first char isn't a letter
+        if not raw or not raw[0].isalpha():
+            raw = "s" + raw
+        # strip any trailing hyphens
+        raw = raw.rstrip("-")
+        # trim to 30 chars (so overall slug stays in reasonable length)
+        raw = raw[:30]
+        # strip again in case trimming cut off mid-word
+        raw = raw.rstrip("-")
+        # append timestamp for uniqueness
+        return f"{raw}-{int(time.time())}"
 
     shop_name_field = "Shop Name (as you want it displayed throughout your site)"
     site_slug = make_valid_slug(record[shop_name_field])
     app.logger.info(f"🌐 Creating site: {site_slug}")
     site_name = create_site(os.environ["TEMPLATE_ID"], site_slug)
 
-    # 2. Push siteData (keys must exist in template)
+    # 2. Push Site Data
     site_data = {
         "email": record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"],
         "shop_name": record[shop_name_field],
@@ -155,5 +160,4 @@ def generate():
     return jsonify({"site": site_name, "row": row_num})
 
 if __name__ == "__main__":
-    # Useful when running locally for debugging
     app.run(debug=True)
