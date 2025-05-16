@@ -11,6 +11,9 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# ——— Change this to exactly match your header in row 1 of the sheet ———
+SHOP_NAME_KEY = "Shop Name (as you want it displayed throughout your site)"
+
 @app.route("/test-auth", methods=["GET"])
 def test_auth():
     import duda_helper
@@ -24,30 +27,27 @@ def generate():
 
     record = get_row_dict(row_num)
 
-    # 1. Clone site — build a slug that starts with a letter, no trailing hyphens
+    # sanity‐check log: what did we pull for the shop name?
+    app.logger.info(f"📋 Record[{SHOP_NAME_KEY}] = {record.get(SHOP_NAME_KEY)!r}")
+
+    # 1. Clone site — slug must come from the shop name
     def make_valid_slug(name: str) -> str:
-        raw = slugify(name) or ""
-        # prefix with "s" if first char isn't a letter
+        raw = slugify(name or "")
         if not raw or not raw[0].isalpha():
             raw = "s" + raw
-        # strip any trailing hyphens
-        raw = raw.rstrip("-")
-        # trim to 30 chars (so overall slug stays in reasonable length)
-        raw = raw[:30]
-        # strip again in case trimming cut off mid-word
-        raw = raw.rstrip("-")
-        # append timestamp for uniqueness
+        # remove trailing hyphens, cap length, then remove trailing hyphens again
+        raw = raw.rstrip("-")[:30].rstrip("-")
         return f"{raw}-{int(time.time())}"
 
-    shop_name_field = "Shop Name (as you want it displayed throughout your site)"
-    site_slug = make_valid_slug(record[shop_name_field])
-    app.logger.info(f"🌐 Creating site: {site_slug}")
+    shop_name = record.get(SHOP_NAME_KEY, "").strip()
+    site_slug = make_valid_slug(shop_name)
+    app.logger.info(f"🌐 Creating site slug: {site_slug}")
     site_name = create_site(os.environ["TEMPLATE_ID"], site_slug)
 
-    # 2. Push Site Data
+    # 2. Push siteData
     site_data = {
         "email": record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"],
-        "shop_name": record[shop_name_field],
+        "shop_name": shop_name,
         "shop_address": record["Shop Address"],
         "shop_city_state": record["Shop City & State Only (eg. Seattle, WA)"],
         "phone": record["Phone number"],
@@ -137,7 +137,7 @@ def generate():
         "surrounding_cities_4": record["Surrounding cities list 4 (include 3 or more, each on a separate line)"],
         "today": record["Todays Date (mm/dd/yy)"]
     }
-    app.logger.info(f"📦 Injecting site data for {site_name}")
+    app.logger.info(f"📦 Injecting siteData for site: {site_name}")
     set_site_data(site_name, site_data)
 
     # 3. Email customer
@@ -147,9 +147,7 @@ def generate():
         <p>Your draft website is ready: <a href="{draft_url}">{draft_url}</a></p>
         <p>We'll be in touch with next steps!</p>
     """
-    email_key = "Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"
-    email_addr = record[email_key]
-
+    email_addr = record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"]
     app.logger.info(f"✉️  Sending email to {email_addr}")
     send_email(email_addr, os.environ["EMAIL_SUBJECT"], html)
 
