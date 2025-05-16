@@ -3,16 +3,12 @@ import os
 logging.info(f"DUDA_API_USERNAME from env: {os.getenv('DUDA_API_USERNAME')}")
 logging.info(f"DUDA_API_PASSWORD from env: {os.getenv('DUDA_API_PASSWORD')}")
 import json, time
-from slugify import slugify
 from sheets_helper import get_row_dict, set_processed
 from duda_helper import create_site, set_site_data
 from email_helper import send_email
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-
-# ——— Change this to exactly match your header in row 1 of the sheet ———
-SHOP_NAME_KEY = "Shop Name (as you want it displayed throughout your site)"
 
 @app.route("/test-auth", methods=["GET"])
 def test_auth():
@@ -27,27 +23,15 @@ def generate():
 
     record = get_row_dict(row_num)
 
-    # sanity‐check log: what did we pull for the shop name?
-    app.logger.info(f"📋 Record[{SHOP_NAME_KEY}] = {record.get(SHOP_NAME_KEY)!r}")
-
-    # 1. Clone site — slug must come from the shop name
-    def make_valid_slug(name: str) -> str:
-        raw = slugify(name or "")
-        if not raw or not raw[0].isalpha():
-            raw = "s" + raw
-        # remove trailing hyphens, cap length, then remove trailing hyphens again
-        raw = raw.rstrip("-")[:30].rstrip("-")
-        return f"{raw}-{int(time.time())}"
-
-    shop_name = record.get(SHOP_NAME_KEY, "").strip()
-    site_slug = make_valid_slug(shop_name)
-    app.logger.info(f"🌐 Creating site slug: {site_slug}")
-    site_name = create_site(os.environ["TEMPLATE_ID"], site_slug)
+    # 1. Clone site — let Duda pick a valid slug for you
+    app.logger.info("🌐 Creating site (auto-slug)")
+    site_name = create_site(os.environ["TEMPLATE_ID"], None)
+    app.logger.info(f"✅ Created site: {site_name}")
 
     # 2. Push siteData
     site_data = {
         "email": record["Please provide an email address that you'd like to use to receive a link to your website draft after completing this form & to receive job applications from your website"],
-        "shop_name": shop_name,
+        "shop_name": record["Shop Name (as you want it displayed throughout your site)"],
         "shop_address": record["Shop Address"],
         "shop_city_state": record["Shop City & State Only (eg. Seattle, WA)"],
         "phone": record["Phone number"],
