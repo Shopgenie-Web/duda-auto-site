@@ -10,6 +10,11 @@ from email_helper import send_email
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+@app.route("/test-auth", methods=["GET"])
+def test_auth():
+    import duda_helper
+    return duda_helper._auth_header()
+
 @app.route("/generate", methods=["POST"])
 def generate():
     payload = request.get_json(force=True)
