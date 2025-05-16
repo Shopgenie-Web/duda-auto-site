@@ -1,69 +1,68 @@
 import os
-import requests
-import base64
 import logging
-import json
+import requests
+from requests.auth import HTTPBasicAuth
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("duda_helper")
+logger.setLevel(logging.INFO)
 
 BASE = "https://api.duda.co/api"
+AUTH = HTTPBasicAuth(
+    os.environ["DUDA_API_USERNAME"],
+    os.environ["DUDA_API_PASSWORD"],
+)
 
-def _auth_header():
-    user = os.environ["DUDA_API_USERNAME"]
-    pw = os.environ["DUDA_API_PASSWORD"]
-    credentials = f"{user}:{pw}"
-    token = base64.b64encode(credentials.encode()).decode()
-    return {"Authorization": f"Basic {token}"}
-
-def create_site(template_id: str, site_name: str):
-    url = f"{BASE}/sites/multiscreen/create"
-
-    # Prepare JSON as a raw string instead of dict to avoid parsing issues
-    payload = json.dumps({
-        "template_id": template_id,
-        "site_name": site_name,
-        "site_domain": site_name,
-        "editor_type": "responsive"
-    })
+def create_site(template_id: str, site_slug: str = None) -> str:
+    """
+    Creates a new multiscreen site from a template.
+    - If site_slug is provided: clones into that exact slug via
+      POST /sites/multiscreen/{site_slug}.
+    - Otherwise: auto-generates slug via POST /sites/multiscreen/create.
+    Returns the new site_name (slug) as returned by Duda.
+    """
+    if site_slug:
+        url = f"{BASE}/sites/multiscreen/{site_slug}"
+        payload = {"template_id": template_id}
+    else:
+        url = f"{BASE}/sites/multiscreen/create"
+        payload = {"template_id": template_id}
 
     headers = {
-        **_auth_header(),
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
-    logger.info(f"🌐 Sending request to create site: {site_name} using template: {template_id}")
+    logger.info(f"🌐 Creating site (template={template_id}) → {url}")
     logger.debug(f"Payload: {payload}")
 
-    # Use data= instead of json= to mirror the raw body behavior
-    res = requests.post(url, headers=headers, data=payload)
-
+    resp = requests.post(url, auth=AUTH, headers=headers, json=payload)
     try:
-        res.raise_for_status()
-        logger.info(f"✅ Site created successfully: {res.json()}")
-        return res.json()["site_name"]
-    except requests.exceptions.HTTPError as err:
-        logger.error(f"❌ HTTP error occurred: {err}")
-        logger.error(f"Response body: {res.text}")
+        resp.raise_for_status()
+    except requests.HTTPError as e:
+        logger.error(f"❌ create_site failed [{resp.status_code}]: {resp.text}")
         raise
+
+    body = resp.json()
+    site_name = body.get("site_name")
+    logger.info(f"✅ Created site: {site_name}")
+    return site_name
 
 def set_site_data(site_name: str, data: dict):
+    """
+    Pushes the `data` dict into the given site's siteData endpoint.
+    """
     url = f"{BASE}/sites/multiscreen/{site_name}/siteData"
     headers = {
-        **_auth_header(),
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
-    logger.info(f"📦 Setting site data for: {site_name}")
-    res = requests.put(url, headers=headers, json={"data": data})
-
+    logger.info(f"📦 Setting siteData for: {site_name}")
+    resp = requests.put(url, auth=AUTH, headers=headers, json={"data": data})
     try:
-        res.raise_for_status()
-        logger.info(f"✅ Site data injected successfully.")
-    except requests.exceptions.HTTPError as err:
-        logger.error(f"❌ Error setting site data: {err}")
-        logger.error(f"Response body: {res.text}")
+        resp.raise_for_status()
+    except requests.HTTPError:
+        logger.error(f"❌ set_site_data failed [{resp.status_code}]: {resp.text}")
         raise
+
+    logger.info("✅ siteData updated successfully")
