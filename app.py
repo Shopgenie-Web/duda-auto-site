@@ -3,6 +3,7 @@ import os
 logging.info(f"DUDA_API_USERNAME from env: {os.getenv('DUDA_API_USERNAME')}")
 logging.info(f"DUDA_API_PASSWORD from env: {os.getenv('DUDA_API_PASSWORD')}")
 import json, time
+from requests.auth import _basic_auth_str
 from sheets_helper import get_row_dict, set_processed
 from duda_helper import create_site, set_site_data
 from email_helper import send_email
@@ -12,8 +13,11 @@ app = Flask(__name__)
 
 @app.route("/test-auth", methods=["GET"])
 def test_auth():
-    import duda_helper
-    return duda_helper._auth_header()
+    # Build and return the exact Basic auth header your app will use
+    username = os.getenv("DUDA_API_USERNAME", "")
+    password = os.getenv("DUDA_API_PASSWORD", "")
+    header = _basic_auth_str(username, password)
+    return jsonify({"Authorization": header})
 
 @app.route("/generate", methods=["POST"])
 def generate():
